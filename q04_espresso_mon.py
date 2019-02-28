@@ -66,6 +66,7 @@ class EspressoCzar(MP):
         """
         MP.__init__(self)
         # TODO implement me
+        self.capacity = self.Shared("capacity", max_coffee_bean_units)
         self.queue = list()
         self.size = self.Shared("shared", 0)
         self.lock = self.Lock("queue lock")
@@ -81,7 +82,7 @@ class EspressoCzar(MP):
         """
         # TODO implement me
         with self.lock:
-            while self.size.read() >= FILL_CAPACITY:
+            while self.size.read() >= self.capacity.read():
                 self.empty_cv.wait()
             self.queue.insert(0, refill_unit)
             self.size.inc()
