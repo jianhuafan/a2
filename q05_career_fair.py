@@ -55,6 +55,7 @@ class Admitter(MP):
         MP.__init__(self)
         # TODO implement me
         # counter
+        self.capacity = self.Shared("Capacity", n)
         self.total = self.Shared("total", 0)
         self.cs_count = self.Shared("cs student", 0)
         self.econ_count = self.Shared("econ student", 0)
@@ -75,8 +76,8 @@ class Admitter(MP):
     def cs_student_enter(self):
         # TODO implement me
         with self.lock:
-            while self.total.read() >= FACILITY_CAPACITY or self.cs_count.read() > self.total.read() * 0.6 or self.wait_hr_count.read() > 0:
-                if self.total.read() >= FACILITY_CAPACITY:
+            while self.total.read() >= self.capacity.read() or self.cs_count.read() > self.total.read() * 0.6 or self.wait_hr_count.read() > 0:
+                if self.total.read() >= self.capacity.read():
                     self.empty_cv.wait()
                 if self.cs_count.read() > self.total.read() * 0.6:
                     self.cs_cv.wait()
@@ -96,8 +97,8 @@ class Admitter(MP):
     def econ_student_enter(self):
         # TODO implement me
         with self.lock:
-            while self.total.read() >= FACILITY_CAPACITY or self.aem_count.read() > 0 or self.wait_hr_count.read() > 0:
-                if self.total.read() >= FACILITY_CAPACITY:
+            while self.total.read() >= self.capacity.read() or self.aem_count.read() > 0 or self.wait_hr_count.read() > 0:
+                if self.total.read() >= self.capacity.read():
                     self.empty_cv.wait()
                 if self.aem_count.read() > 0:
                     self.econ_cv.wait()
@@ -118,8 +119,8 @@ class Admitter(MP):
     def aem_student_enter(self):
         # TODO implement me
         with self.lock:
-            while self.total.read() >= FACILITY_CAPACITY or self.econ_count.read() > 0 or self.wait_hr_count.read() > 0:
-                if self.total.read() >= FACILITY_CAPACITY:
+            while self.total.read() >= self.capacity.read() or self.econ_count.read() > 0 or self.wait_hr_count.read() > 0:
+                if self.total.read() >= self.capacity.read():
                     self.empty_cv.wait()
                 if self.econ_count.read() > 0:
                     self.aem_cv.wait()
@@ -142,7 +143,7 @@ class Admitter(MP):
         with self.wait_hr_lock:
             self.wait_hr_count.inc()
         with self.lock:
-            while self.total.read() >= FACILITY_CAPACITY:
+            while self.total.read() >= self.capacity.read():
                 self.empty_cv.wait()
             self.total.inc()
             with self.wait_hr_lock:
