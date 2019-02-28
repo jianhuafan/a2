@@ -54,90 +54,106 @@ class Admitter(MP):
     def __init__(self, n):
         MP.__init__(self)
         # TODO implement me
-        self.total = 0
-        self.cs_count = 0
-        self.econ_count = 0
-        self.aem_count = 0
-        self.wait_hr_count = 0
+        # counter
+        self.total = self.Shared("total", 0)
+        self.cs_count = self.Shared("cs student", 0)
+        self.econ_count = self.Shared("econ student", 0)
+        self.aem_count = self.Shared("aem student", 0)
+        self.wait_hr_count = self.Shared("waiting recruiter", 0)
+
+        # lock
         self.lock = self.Lock("career fair")
-        self.student_cv = self.lock.Condition("student can enter")
-        self.hr_cv = self.lock.Condition("recruiter can enter")
+        self.wait_hr_lock = self.Lock("waiting recruiter counter lock")
+
+        # condition variable
+        self.empty_cv = self.lock.Condition("career fair not empty")
+        self.cs_cv = self.lock.Condition("cs student can enter career fair")
+        self.econ_cv = self.lock.Condition("econ student can enter career fair")
+        self.aem_cv = self.lock.Condition("aem student can enter career fair")
+        self.hr_cv = self.lock.Condition("recruiter waits outside career fair")
 
     def cs_student_enter(self):
         # TODO implement me
         with self.lock:
-            while self.total >= FACILITY_CAPACITY or self.cs_count + 1 > self.total * 0.6 or self.wait_hr_count > 0:
-                self.student_cv.wait()
-            self.total += 1
-            self.cs_count += 1
+            while self.total.read() >= FACILITY_CAPACITY or self.cs_count.read() > self.total.read() * 0.6 or self.wait_hr_count.read() > 0:
+                if self.total.read() >= FACILITY_CAPACITY:
+                    self.empty_cv.wait()
+                if self.cs_count.read() > self.total.read() * 0.6:
+                    self.cs_cv.wait()
+                if self.wait_hr_count.read() > 0:
+                    self.hr_cv.wait()
+            self.total.inc()
+            self.cs_count.inc()
 
     def cs_student_leave(self):
         # TODO implement me
         with self.lock:
-            self.cs_count -= 1
-            self.total -= 1
-            if self.wait_hr_count > 0:
-                self.hr_cv.signal()
-            else:
-                self.student_cv.broadcast()
+            self.cs_count.dec()
+            self.total.dec()
+            self.cs_cv.broadcast()
+            self.empty_cv.broadcast()
 
     def econ_student_enter(self):
         # TODO implement me
         with self.lock:
-            while self.total >= FACILITY_CAPACITY or self.aem_count > 0 or self.wait_hr_count > 0:
-                self.student_cv.wait()
-            self.econ_count += 1
-            self.total += 1
+            while self.total.read() >= FACILITY_CAPACITY or self.aem_count.read() > 0 or self.wait_hr_count.read() > 0:
+                if self.total.read() >= FACILITY_CAPACITY:
+                    self.empty_cv.wait()
+                if self.aem_count.read() > 0:
+                    self.econ_cv.wait()
+                if self.wait_hr_count.read() > 0:
+                    self.hr_cv.wait()
+            self.econ_count.inc()
+            self.total.inc()
 
     def econ_student_leave(self):
         # TODO implement me
         with self.lock:
-            self.econ_count -= 1
-            self.total -= 1
-            if self.wait_hr_count > 0:
-                self.hr_cv.signal()
-            else:
-                self.student_cv.broadcast()
+            self.econ_count.dec()
+            self.total.dec()
+            if self.econ_count.read() == 0:
+                self.aem_cv.broadcast()
+            self.empty_cv.broadcast()
 
     def aem_student_enter(self):
         # TODO implement me
         with self.lock:
-            while self.total >= FACILITY_CAPACITY or self.econ_count > 0 or self.wait_hr_count > 0:
-                self.student_cv.wait()
-            self.aem_count += 1
-            self.total += 1
+            while self.total.read() >= FACILITY_CAPACITY or self.econ_count.read() > 0 or self.wait_hr_count.read() > 0:
+                if self.total.read() >= FACILITY_CAPACITY:
+                    self.empty_cv.wait()
+                if self.econ_count.read() > 0:
+                    self.aem_cv.wait()
+                if self.wait_hr_count.read() > 0:
+                    self.hr_cv.wait()
+            self.aem_count.inc()
+            self.total.inc()
 
     def aem_student_leave(self):
         # TODO implement me
         with self.lock:
-            self.aem_count -= 1
-            self.total -= 1
-            if self.wait_hr_count > 0:
-                self.hr_cv.signal()
-            else:
-                self.student_cv.broadcast()
+            self.aem_count.dec()
+            self.total.dec()
+            if self.aem_count.read() == 0:
+                self.econ_cv.broadcast()
+            self.empty_cv.broadcast()
 
     def recruiter_enter(self):
         # TODO implement me
+        with self.wait_hr_lock:
+            self.wait_hr_count.inc()
         with self.lock:
-            has_increase = False
-            while self.total >= FACILITY_CAPACITY:
-                if not has_increase:
-                    self.wait_hr_count += 1
-                    has_increase = True
-                self.hr_cv.wait()
-            self.total += 1
-            if self.wait_hr_count > 0:
-                self.wait_hr_count -= 1
+            while self.total.read() >= FACILITY_CAPACITY:
+                self.empty_cv.wait()
+            self.total.inc()
+            with self.wait_hr_lock:
+                self.wait_hr_count.dec()
 
     def recruiter_leave(self):
         # TODO implement me
         with self.lock:
-            self.total -= 1
-            if self.wait_hr_count > 0:
-                self.hr_cv.signal()
-            else:
-                self.student_cv.broadcast()
+            self.total.dec()
+            self.hr_cv.broadcast()
+            self.empty_cv.broadcast()
 
 
 
